@@ -64,6 +64,48 @@ def extract_ad_urls(search_html: str, limit: int = 30) -> list[str]:
 
     return uniq[:limit]
 
+from urllib.parse import urljoin
+
+def extract_ad_urls_paged(search_url: str, limit: int = 50, max_pages: int = 20) -> list[str]:
+    """
+    Собирает ссылки на объявления с нескольких страниц поиска SS.com.
+    limit — сколько всего ссылок нужно.
+    max_pages — ограничение по страницам (защита от бесконечного цикла).
+    """
+    urls: list[str] = []
+    page = 1
+
+    print(f"[PAGED_INIT] limit={limit} max_pages={max_pages}")
+
+    while len(urls) < limit and page <= max_pages:
+        if page == 1:
+            page_url = search_url
+        else:
+            page_url = search_url.rstrip("/") + f"/page{page}.html"
+
+        print(f"[PAGE] {page_url}")
+
+        html = fetch_html(page_url)
+        if not html:
+            break
+
+        page_urls = extract_ad_urls(html, limit=10_000)
+
+        print(f"[PAGE_URLS] page={page} got={len(page_urls)} total_before={len(urls)}")
+
+        # добавляем только новые ссылки
+        for u in page_urls:
+            if u not in urls:
+                urls.append(u)
+
+        print(f"[TOTAL_URLS] total_after={len(urls)}")
+
+        time.sleep(0.0)
+
+        page += 1
+
+    return urls[:limit]
+
 
 def _parse_int(s: str) -> Optional[int]:
     s = s.strip()
@@ -216,8 +258,7 @@ def find_matches(
     if query_models is None:
         query_models = ["dr", "drz", "xr", "klr", "klx", "dl650", "vstrom", "freewind", "transalp"]
 
-    search_html = fetch_html(SEARCH_URL)
-    ad_urls = extract_ad_urls(search_html, limit=limit)
+    ad_urls = extract_ad_urls_paged(SEARCH_URL, limit=limit, max_pages=10)
 
     matches: list[Listing] = []
 
